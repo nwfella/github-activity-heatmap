@@ -1027,34 +1027,34 @@
     const fullData = dateRange.map(d => ({ date: d, count: dateCounts[d] || 0 }));
 
     // SMART RANGE COMPRESSION: find the span of active days, add padding
-    // If user set a custom range, use it instead
     let trimmedData;
+    let workingData = fullData;
+
+    // If custom range is set, filter to that window first
     if (useCustomRange && state.customDateRange) {
       const { from, to } = state.customDateRange;
-      trimmedData = fullData.filter(d => d.date && d.date >= from && d.date <= to);
-      if (trimmedData.length === 0) {
-        // fallback: show a small range
-        trimmedData = fullData.slice(Math.max(0, fullData.length - 28));
-      }
-    } else {
-      const activeIndices = [];
-      fullData.forEach((d, i) => { if (d.count > 0) activeIndices.push(i); });
+      const filtered = fullData.filter(d => d.date && d.date >= from && d.date <= to);
+      if (filtered.length > 0) workingData = filtered;
+    }
 
-      if (activeIndices.length === 0) {
-        trimmedData = fullData.slice(Math.max(0, fullData.length - 28));
-      } else {
-        const firstActive = Math.max(0, activeIndices[0] - 7);
-        const lastActive  = Math.min(fullData.length - 1, activeIndices[activeIndices.length - 1] + 7);
-        const startIdx = Math.max(0, firstActive);
-        const endIdx = Math.min(fullData.length, lastActive + 1);
-        const minLen = 28;
-        let data = fullData.slice(startIdx, endIdx);
-        if (data.length < minLen) {
-          const padEnd = Math.min(fullData.length, endIdx + (minLen - data.length));
-          data = fullData.slice(Math.max(0, padEnd - minLen), padEnd);
-        }
-        trimmedData = data;
+    // Apply smart compression within the working window
+    const activeIndices = [];
+    workingData.forEach((d, i) => { if (d.count > 0) activeIndices.push(i); });
+
+    if (activeIndices.length === 0) {
+      trimmedData = workingData.slice(Math.max(0, workingData.length - 28));
+    } else {
+      const firstActive = Math.max(0, activeIndices[0] - 7);
+      const lastActive  = Math.min(workingData.length - 1, activeIndices[activeIndices.length - 1] + 7);
+      const startIdx = Math.max(0, firstActive);
+      const endIdx = Math.min(workingData.length, lastActive + 1);
+      const minLen = 28;
+      let data = workingData.slice(startIdx, endIdx);
+      if (data.length < minLen) {
+        const padEnd = Math.min(workingData.length, endIdx + (minLen - data.length));
+        data = workingData.slice(Math.max(0, padEnd - minLen), padEnd);
       }
+      trimmedData = data;
     }
 
     const maxCount = Math.max(1, ...trimmedData.map(d => d.count));
@@ -1081,7 +1081,8 @@
     const visibleStart = trimmedData[0].date ? parseDate(trimmedData[0].date) : null;
     const visibleEnd = trimmedData[trimmedData.length-1].date ? parseDate(trimmedData[trimmedData.length-1].date) : null;
     if (visibleStart && visibleEnd) {
-      rangeInfo.textContent = `${visibleStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${visibleEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+      const activeDays = trimmedData.filter(d => d.count > 0).length;
+      rangeInfo.textContent = `${visibleStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${visibleEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}  ·  ${activeDays} active day${activeDays!==1?'s':''}`;
     }
 
     // Month labels
@@ -1443,15 +1444,20 @@
 
   // ---- date range picker ----
   dateApplyBtn.addEventListener('click', () => {
-    const from = dateFrom.value;
-    const to = dateTo.value;
+    let from = dateFrom.value;
+    let to = dateTo.value;
     if (!from || !to) return;
-    if (from > to) {
-      dateTo.value = from;
-      state.customDateRange = { from, to: from };
-    } else {
-      state.customDateRange = { from, to };
-    }
+
+    // Clamp to available data
+    const dataStart = state.dateRange[0];
+    const dataEnd = state.dateRange[state.dateRange.length - 1];
+    if (!dataStart || !dataEnd) return;
+
+    if (from < dataStart) { from = dataStart; dateFrom.value = dataStart; }
+    if (to > dataEnd) { to = dataEnd; dateTo.value = dataEnd; }
+    if (from > to) { from = dataStart; to = dataEnd; dateFrom.value = dataStart; dateTo.value = dataEnd; }
+
+    state.customDateRange = { from, to };
     renderHeatmap(state.dateCounts, state.dateRange, state.repoFilter, true);
     renderStats(state.dateCounts, state.dateRange);
   });
