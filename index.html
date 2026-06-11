@@ -314,18 +314,24 @@
       font-family: var(--mono);
     }
 
+    .heatmap {
+      display: grid;
+      grid-template-rows: repeat(7, 1fr);
+      grid-auto-columns: 14px;
+      gap: 3px;
+    }
     .heatmap-wrapper {
       overflow-x: auto;
       padding-bottom: 6px;
       -webkit-overflow-scrolling: touch;
     }
 
-    .heatmap {
-      display: grid;
-      grid-template-rows: repeat(7, 1fr);
-      grid-auto-columns: 1fr;
-      gap: 3px;
-      min-width: 640px;
+    @media (max-width: 480px) {
+      .heatmap { grid-auto-columns: 10px; gap: 2px; }
+      .cell { width: 10px; height: 10px; }
+    }
+    @media (min-width: 900px) {
+      .heatmap { gap: 4px; }
     }
 
     .month-labels {
@@ -336,7 +342,6 @@
       color: var(--text-muted);
       margin-bottom: 4px;
       padding-left: 36px;
-      min-width: 640px;
     }
     .month-labels span {
       text-align: left;
@@ -348,13 +353,18 @@
       gap: 3px;
       font-size: .65rem;
       color: var(--text-muted);
-      margin-right: 4px;
-      min-width: 28px;
+      margin-right: 6px;
+      min-width: 32px;
     }
     .day-labels span {
-      line-height: 1;
+      line-height: 14px;
       display: flex;
       align-items: center;
+    }
+
+    @media (max-width: 480px) {
+      .day-labels { min-width: 26px; gap: 2px; }
+      .day-labels span { line-height: 10px; }
     }
 
     .heatmap-container {
@@ -362,8 +372,8 @@
     }
 
     .cell {
-      width: 100%;
-      aspect-ratio: 1;
+      width: 14px;
+      height: 14px;
       border-radius: 2px;
       background: var(--heat-0);
       cursor: pointer;
@@ -962,16 +972,60 @@
 
   // ---- render heatmap ----
   function renderHeatmap(dateCounts, dateRange, repoFilter) {
-    const data = [];
-    for (const d of dateRange) {
-      data.push({ date: d, count: dateCounts[d] || 0 });
-    }
-    const maxCount = Math.max(1, ...data.map(d => d.count));
+    // Build data array
+    const fullData = dateRange.map(d => ({ date: d, count: dateCounts[d] || 0 }));
 
-    // Group by weeks (7 days each). dateRange is ordered oldest → newest
+    // SMART RANGE COMPRESSION: find the span of active days, add padding
+    const activeIndices = [];
+    fullData.forEach((d, i) => { if (d.count > 0) activeIndices.push(i); });
+
+    let trimmedData;
+    if (activeIndices.length === 0) {
+      // No activity — show last 4 weeks
+      trimmedData = fullData.slice(Math.max(0, fullData.length - 28));
+    } else {
+      const firstActive = Math.max(0, activeIndices[0] - 7);  // 1 week padding before
+      const lastActive  = Math.min(fullData.length - 1, activeIndices[activeIndices.length - 1] + 7); // 1 week padding after
+      // Expand to full weeks (pad to Mon-Sun boundaries)
+      const startIdx = Math.max(0, firstActive);
+      const endIdx = Math.min(fullData.length, lastActive + 1);
+      // Ensure minimum 4 weeks visible
+      const minLen = 28;
+      const actualLen = endIdx - startIdx;
+      let data = fullData.slice(startIdx, endIdx);
+      if (data.length < minLen) {
+        // Not enough data — pad from the end (show most recent activity)
+        const padEnd = Math.min(fullData.length, endIdx + (minLen - data.length));
+        data = fullData.slice(Math.max(0, padEnd - minLen), padEnd);
+      }
+      trimmedData = data;
+    }
+
+    const maxCount = Math.max(1, ...trimmedData.map(d => d.count));
+
+    // Group by weeks (7 days each), padding first week to Monday if needed
     const weeks = [];
-    for (let i = 0; i < data.length; i += 7) {
-      weeks.push(data.slice(i, i + 7));
+    const firstDate = parseDate(trimmedData[0].date);
+    const firstDay = firstDate ? firstDate.getDay() : 1;
+    const padFront = firstDay === 0 ? 6 : firstDay - 1;
+    let cursor = 0;
+    if (padFront > 0) {
+      const padded = [];
+      for (let p = 0; p < padFront; p++) padded.push({ date: null, count: -1 });
+      for (let p = 0; p < 7 - padFront && cursor < trimmedData.length; p++, cursor++) {
+        padded.push(trimmedData[cursor]);
+      }
+      weeks.push(padded);
+    }
+    for (; cursor < trimmedData.length; cursor += 7) {
+      weeks.push(trimmedData.slice(cursor, cursor + 7));
+    }
+
+    // Update range info to show visible range
+    const visibleStart = trimmedData[0].date ? parseDate(trimmedData[0].date) : null;
+    const visibleEnd = trimmedData[trimmedData.length-1].date ? parseDate(trimmedData[trimmedData.length-1].date) : null;
+    if (visibleStart && visibleEnd) {
+      rangeInfo.textContent = `${visibleStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${visibleEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
     }
 
     // Month labels
@@ -1054,15 +1108,6 @@
       });
       el.addEventListener('mouseleave', () => tooltipEl.classList.remove('visible'));
     });
-
-    // Range info
-    if (dateRange.length > 0) {
-      const first = parseDate(dateRange[0]);
-      const last  = parseDate(dateRange[dateRange.length-1]);
-      if (first && last) {
-        rangeInfo.textContent = `${first.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${last.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
-      }
-    }
 
     return {};
   }
