@@ -1023,66 +1023,44 @@
 
   // ---- render heatmap ----
   function renderHeatmap(dateCounts, dateRange, repoFilter, useCustomRange) {
-    // Build data array
     const fullData = dateRange.map(d => ({ date: d, count: dateCounts[d] || 0 }));
 
-    // SMART RANGE COMPRESSION: find the span of active days, add padding
-    let trimmedData;
-    let workingData = fullData;
+    let displayData = fullData;
 
-    // If custom range is set, filter to that window first
+    // If custom range is set, filter to that window
     if (useCustomRange && state.customDateRange) {
       const { from, to } = state.customDateRange;
       const filtered = fullData.filter(d => d.date && d.date >= from && d.date <= to);
-      if (filtered.length > 0) workingData = filtered;
+      if (filtered.length > 0) displayData = filtered;
     }
 
-    // Apply smart compression within the working window
-    const activeIndices = [];
-    workingData.forEach((d, i) => { if (d.count > 0) activeIndices.push(i); });
+    const maxCount = Math.max(1, ...displayData.map(d => d.count));
 
-    if (activeIndices.length === 0) {
-      trimmedData = workingData.slice(Math.max(0, workingData.length - 28));
-    } else {
-      const firstActive = Math.max(0, activeIndices[0] - 7);
-      const lastActive  = Math.min(workingData.length - 1, activeIndices[activeIndices.length - 1] + 7);
-      const startIdx = Math.max(0, firstActive);
-      const endIdx = Math.min(workingData.length, lastActive + 1);
-      const minLen = 28;
-      let data = workingData.slice(startIdx, endIdx);
-      if (data.length < minLen) {
-        const padEnd = Math.min(workingData.length, endIdx + (minLen - data.length));
-        data = workingData.slice(Math.max(0, padEnd - minLen), padEnd);
-      }
-      trimmedData = data;
-    }
-
-    const maxCount = Math.max(1, ...trimmedData.map(d => d.count));
-
-    // Group by weeks (7 days each), padding first week to Monday if needed
+    // Group into weeks, pad first partial week to Monday
     const weeks = [];
-    const firstDate = parseDate(trimmedData[0].date);
+    const firstDate = displayData[0] ? parseDate(displayData[0].date) : null;
     const firstDay = firstDate ? firstDate.getDay() : 1;
     const padFront = firstDay === 0 ? 6 : firstDay - 1;
     let cursor = 0;
     if (padFront > 0) {
       const padded = [];
       for (let p = 0; p < padFront; p++) padded.push({ date: null, count: -1 });
-      for (let p = 0; p < 7 - padFront && cursor < trimmedData.length; p++, cursor++) {
-        padded.push(trimmedData[cursor]);
+      for (let p = 0; p < 7 - padFront && cursor < displayData.length; p++, cursor++) {
+        padded.push(displayData[cursor]);
       }
       weeks.push(padded);
     }
-    for (; cursor < trimmedData.length; cursor += 7) {
-      weeks.push(trimmedData.slice(cursor, cursor + 7));
+    for (; cursor < displayData.length; cursor += 7) {
+      weeks.push(displayData.slice(cursor, cursor + 7));
     }
 
-    // Update range info to show visible range
-    const visibleStart = trimmedData[0].date ? parseDate(trimmedData[0].date) : null;
-    const visibleEnd = trimmedData[trimmedData.length-1].date ? parseDate(trimmedData[trimmedData.length-1].date) : null;
+    // Update range info
+    const visibleStart = displayData[0] && displayData[0].date ? parseDate(displayData[0].date) : null;
+    const visibleEnd = displayData[displayData.length-1] && displayData[displayData.length-1].date ? parseDate(displayData[displayData.length-1].date) : null;
     if (visibleStart && visibleEnd) {
-      const activeDays = trimmedData.filter(d => d.count > 0).length;
-      rangeInfo.textContent = `${visibleStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${visibleEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}  ·  ${activeDays} active day${activeDays!==1?'s':''}`;
+      const activeDays = displayData.filter(d => d.count > 0).length;
+      const totalEvents = displayData.reduce((s,d) => s + d.count, 0);
+      rangeInfo.textContent = `${visibleStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${visibleEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}  ·  ${totalEvents} events · ${activeDays} active day${activeDays!==1?'s':''}`;
     }
 
     // Month labels
