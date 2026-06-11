@@ -1,0 +1,1350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GitHive · Activity Heatmap</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔥</text></svg>" />
+  <meta name="description" content="Beautiful GitHub activity heatmap — streaks, languages, and stats." />
+  <style>
+    /* ============================================================
+       CSS CUSTOM PROPERTIES — THEMES
+       ============================================================ */
+    :root {
+      /* dark (default) */
+      --bg:         #0d1117;
+      --surface:    #161b22;
+      --surface-2:  #21262d;
+      --border:     #30363d;
+      --text:       #e6edf3;
+      --text-muted: #8b949e;
+      --accent:     #58a6ff;
+      --accent-2:   #3fb950;
+      --danger:     #f85149;
+      --warning:    #d29922;
+      --radius:     12px;
+      --radius-sm:  8px;
+      --shadow:     0 8px 32px rgba(0,0,0,.4);
+      --font:       'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+      --mono:       'JetBrains Mono','Cascadia Code','SF Mono',monospace;
+      --heat-0:     #161b22;
+      --heat-1:     #0e4429;
+      --heat-2:     #006d32;
+      --heat-3:     #26a641;
+      --heat-4:     #39d353;
+      --glow:       rgba(88,166,255,.15);
+    }
+
+    [data-theme="light"] {
+      --bg:         #ffffff;
+      --surface:    #f6f8fa;
+      --surface-2:  #eaeef2;
+      --border:     #d0d7de;
+      --text:       #1f2328;
+      --text-muted: #656d76;
+      --accent:     #0969da;
+      --accent-2:   #1a7f37;
+      --danger:     #cf222e;
+      --warning:    #9a6700;
+      --shadow:     0 8px 32px rgba(0,0,0,.08);
+      --heat-0:     #ebedf0;
+      --heat-1:     #9be9a8;
+      --heat-2:     #40c463;
+      --heat-3:     #30a14e;
+      --heat-4:     #216e39;
+      --glow:       rgba(9,105,218,.1);
+    }
+
+    [data-theme="blue"] {
+      --bg:         #0a1929;
+      --surface:    #0d2137;
+      --surface-2:  #132f4c;
+      --border:     #173a5e;
+      --text:       #e3f2fd;
+      --text-muted: #7ba2c9;
+      --accent:     #60a5fa;
+      --accent-2:   #34d399;
+      --danger:     #f87171;
+      --warning:    #fbbf24;
+      --shadow:     0 8px 32px rgba(0,10,30,.5);
+      --heat-0:     #0d2137;
+      --heat-1:     #1a3a5c;
+      --heat-2:     #2d5a8e;
+      --heat-3:     #4285c7;
+      --heat-4:     #60a5fa;
+      --glow:       rgba(96,165,250,.12);
+    }
+
+    /* ============================================================
+       RESET & BASE
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: background .35s ease, color .35s ease;
+      padding: 24px 16px;
+    }
+
+    /* ============================================================
+       LAYOUT
+       ============================================================ */
+    .app {
+      max-width: 1100px;
+      width: 100%;
+    }
+
+    /* ----- HEADER ----- */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-icon {
+      width: 42px; height: 42px;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 24px var(--glow);
+    }
+    .logo h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -.02em;
+    }
+    .logo span {
+      color: var(--text-muted);
+      font-weight: 400;
+      font-size: .85rem;
+      display: block;
+      margin-top: 1px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ----- BUTTONS ----- */
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: .85rem;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all .2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .btn:hover {
+      border-color: var(--accent);
+      background: var(--surface-2);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.15);
+    }
+    .btn-icon {
+      padding: 8px 10px;
+      font-size: 1.1rem;
+    }
+    .btn-icon.active {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+    }
+    .btn-icon.theme-btn.active {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+    }
+
+    /* ----- SEARCH BAR ----- */
+    .search-section {
+      margin-bottom: 24px;
+    }
+    .search-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .search-row input[type="text"] {
+      flex: 1;
+      min-width: 200px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text);
+      font-size: .95rem;
+      font-family: var(--font);
+      transition: border-color .2s;
+      outline: none;
+    }
+    .search-row input[type="text"]:focus {
+      border-color: var(--accent);
+    }
+    .search-row input[type="text"]::placeholder {
+      color: var(--text-muted);
+    }
+
+    .token-section {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .token-section label {
+      font-size: .8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .token-section input[type="password"] {
+      width: 280px;
+      max-width: 100%;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: .8rem;
+      font-family: var(--mono);
+      outline: none;
+    }
+    .token-section input[type="password"]:focus {
+      border-color: var(--accent);
+    }
+
+    /* ----- STATS ROW ----- */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      transition: background .35s, border .35s;
+    }
+    .stat-card .label {
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .stat-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .stat-card .sub {
+      font-size: .8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .stat-card.accent {
+      border-color: var(--accent);
+    }
+    .stat-card.accent .value { color: var(--accent); }
+    .stat-card.green .value  { color: var(--accent-2); }
+    .stat-card.gold .value   { color: var(--warning); }
+
+    /* ----- HEATMAP ----- */
+    .heatmap-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px 20px;
+      margin-bottom: 24px;
+      transition: background .35s, border .35s;
+    }
+
+    .heatmap-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .heatmap-header h3 {
+      font-size: .95rem;
+      font-weight: 600;
+    }
+    .heatmap-header .range-info {
+      font-size: .8rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    .heatmap-wrapper {
+      overflow-x: auto;
+      padding-bottom: 6px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .heatmap {
+      display: grid;
+      grid-template-rows: repeat(7, 1fr);
+      grid-auto-columns: 1fr;
+      gap: 3px;
+      min-width: 640px;
+    }
+
+    .month-labels {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      font-size: .7rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      padding-left: 36px;
+      min-width: 640px;
+    }
+    .month-labels span {
+      text-align: left;
+    }
+
+    .day-labels {
+      display: grid;
+      grid-template-rows: repeat(7, 1fr);
+      gap: 3px;
+      font-size: .65rem;
+      color: var(--text-muted);
+      margin-right: 4px;
+      min-width: 28px;
+    }
+    .day-labels span {
+      line-height: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    .heatmap-container {
+      display: flex;
+    }
+
+    .cell {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 2px;
+      background: var(--heat-0);
+      cursor: pointer;
+      position: relative;
+      transition: background .15s, transform .15s;
+    }
+    .cell:hover {
+      transform: scale(1.35);
+      z-index: 2;
+    }
+    .cell.lv1 { background: var(--heat-1); }
+    .cell.lv2 { background: var(--heat-2); }
+    .cell.lv3 { background: var(--heat-3); }
+    .cell.lv4 { background: var(--heat-4); }
+
+    .cell.empty {
+      background: transparent;
+      cursor: default;
+    }
+    .cell.empty:hover { transform: none; }
+
+    /* tooltip */
+    .tooltip {
+      position: fixed;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: .8rem;
+      pointer-events: none;
+      z-index: 100;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transition: opacity .15s;
+      white-space: nowrap;
+    }
+    .tooltip.visible { opacity: 1; }
+
+    /* heatmap legend */
+    .heatmap-footer {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      font-size: .72rem;
+      color: var(--text-muted);
+    }
+    .heatmap-footer .legend-cells {
+      display: flex;
+      gap: 2px;
+    }
+    .heatmap-footer .legend-cells .cell {
+      width: 14px;
+      height: 14px;
+    }
+    .heatmap-footer .legend-cells .cell:hover { transform: none; }
+
+    /* ----- FILTERS ----- */
+    .filters-section {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    .filters-section .filter-label {
+      font-size: .78rem;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+    .filter-chip {
+      padding: 4px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: .78rem;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .filter-chip:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .filter-chip.active {
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .filter-chip.repo-chip {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ----- LANGUAGES ----- */
+    .lang-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+      transition: background .35s, border .35s;
+    }
+    .lang-section h3 {
+      font-size: .95rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .lang-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .lang-bar-row .lang-name {
+      width: 100px;
+      font-size: .82rem;
+      font-weight: 500;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .lang-bar-row .lang-track {
+      flex: 1;
+      height: 20px;
+      background: var(--surface-2);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+    .lang-bar-row .lang-fill {
+      height: 100%;
+      border-radius: 10px;
+      transition: width .6s ease;
+      min-width: 2px;
+    }
+    .lang-bar-row .lang-pct {
+      width: 44px;
+      font-size: .78rem;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      flex-shrink: 0;
+    }
+
+    .lang-colors {
+      --js:  #f7df1e;
+      --py:  #3572a5;
+      --ts:  #3178c6;
+      --html: #e34f26;
+      --css:  #563d7c;
+      --go:   #00add8;
+      --rust: #dea584;
+      --java: #b07219;
+      --rb:   #701516;
+      --sh:   #89e051;
+      --sol:  #363636;
+      --md:   #083fa1;
+      --json: #5b5b5b;
+      --rs:   #dea584;
+      --sc:   #c22d40;
+      --default: #6b7280;
+    }
+
+    /* ----- ACTIVITY BREAKDOWN ----- */
+    .activity-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+      transition: background .35s, border .35s;
+    }
+    .activity-section h3 {
+      font-size: .95rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .activity-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+    }
+    .activity-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+    }
+    .activity-item .emoji {
+      font-size: 1.3rem;
+      flex-shrink: 0;
+    }
+    .activity-item .info {
+      flex: 1;
+    }
+    .activity-item .info .type {
+      font-size: .8rem;
+      font-weight: 500;
+    }
+    .activity-item .info .count {
+      font-size: .7rem;
+      color: var(--text-muted);
+    }
+    .activity-item .count-num {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* ----- LOADING / EMPTY STATES ----- */
+    .loading-state {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--text-muted);
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 16px;
+      color: var(--text-muted);
+    }
+    .empty-state .big-icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+    }
+    .empty-state h3 {
+      font-size: 1.1rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .error-state {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--danger);
+    }
+
+    /* ----- FOOTER ----- */
+    footer {
+      margin-top: 32px;
+      padding: 20px 0;
+      text-align: center;
+      font-size: .8rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    footer a:hover { text-decoration: underline; }
+
+    /* ----- RESPONSIVE ----- */
+    @media (max-width: 768px) {
+      body { padding: 16px 12px; }
+      .logo h1 { font-size: 1.2rem; }
+      .logo span { font-size: .75rem; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .stat-card { padding: 12px 14px; }
+      .stat-card .value { font-size: 1.2rem; }
+      .heatmap-section { padding: 16px 12px; }
+      .lang-bar-row .lang-name { width: 72px; font-size: .75rem; }
+      .token-section input[type="password"] { width: 100%; }
+      .search-row input[type="text"] { min-width: 140px; }
+    }
+
+    @media (max-width: 480px) {
+      .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .header-actions .btn span { display: none; }
+      .heatmap-section { padding: 12px 8px; }
+    }
+
+    /* anim in */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+      animation: fadeUp .4s ease forwards;
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+
+    <!-- HEADER -->
+    <header>
+      <div class="logo">
+        <div class="logo-icon">🔥</div>
+        <div>
+          <h1>GitHive</h1>
+          <span>activity heatmap · streaks · languages</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-icon theme-btn active" data-theme-btn="dark" title="Dark theme">🌙</button>
+        <button class="btn btn-icon theme-btn" data-theme-btn="light" title="Light theme">☀️</button>
+        <button class="btn btn-icon theme-btn" data-theme-btn="blue" title="Blue theme">🌊</button>
+      </div>
+    </header>
+
+    <!-- SEARCH -->
+    <section class="search-section">
+      <div class="search-row">
+        <input type="text" id="usernameInput" placeholder="Enter GitHub username…" spellcheck="false" autofocus />
+        <button class="btn btn-primary" id="loadBtn">🔍 Load</button>
+        <button class="btn" id="randomBtn">🎲 Random</button>
+      </div>
+      <div class="token-section">
+        <label>
+          🔑 Token <span style="font-size:.7rem;color:var(--text-muted)">(optional — higher rate limit)</span>
+          <input type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" />
+        </label>
+      </div>
+    </section>
+
+    <!-- STATS -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card green">
+        <div class="label">Total Events</div>
+        <div class="value" id="statTotal">—</div>
+      </div>
+      <div class="stat-card accent">
+        <div class="label">Active Days</div>
+        <div class="value" id="statActive">—</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="label">Streak</div>
+        <div class="value" id="statStreak">—</div>
+        <div class="sub" id="statStreakSub">current</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Best Day</div>
+        <div class="value" id="statBest">—</div>
+        <div class="sub" id="statBestSub"></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Longest Streak</div>
+        <div class="value" id="statLongest">—</div>
+        <div class="sub">this period</div>
+      </div>
+    </div>
+
+    <!-- HEATMAP -->
+    <section class="heatmap-section" id="heatmapSection">
+      <div class="heatmap-header">
+        <h3>📅 Contribution Heatmap</h3>
+        <span class="range-info" id="rangeInfo">—</span>
+      </div>
+      <div id="heatmapContent">
+        <div class="empty-state">
+          <div class="big-icon">👆</div>
+          <h3>Enter a GitHub username</h3>
+          <p>See their activity as a beautiful heatmap</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FILTERS -->
+    <div id="filtersArea" style="display:none;">
+      <div class="filters-section" id="filtersSection">
+        <span class="filter-label">📂 Repos</span>
+        <button class="filter-chip active" data-repo="all">All</button>
+      </div>
+    </div>
+
+    <!-- LANGUAGE BREAKDOWN -->
+    <section class="lang-section" id="langSection" style="display:none;">
+      <h3>📊 Language Breakdown</h3>
+      <div id="langContent"></div>
+    </section>
+
+    <!-- ACTIVITY BREAKDOWN -->
+    <section class="activity-section" id="activitySection" style="display:none;">
+      <h3>⚡ Activity Breakdown</h3>
+      <div id="activityContent"></div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+      Built with ❤️ &amp; the GitHub API · <a href="https://github.com/nwfella/github-activity-heatmap" target="_blank">Source</a>
+    </footer>
+  </div>
+
+  <!-- TOOLTIP -->
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+  /* ================================================================
+     GitHive — Main Application
+     ================================================================ */
+
+  // ---- state ----
+  const state = {
+    username: '',
+    events: [],
+    dateCounts: {},
+    dateRange: [],
+    repos: new Set(),
+    repoFilter: 'all',
+    langData: {},
+    eventTypes: {},
+    loading: false,
+  };
+
+  const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const DAY_LABELS = DAYS.map((d,i) => [0,2,4].includes(i) ? d : '');
+  const EVENTS_META = {
+    PushEvent:           { emoji:'📤', label:'Pushes' },
+    CreateEvent:         { emoji:'➕', label:'Created' },
+    DeleteEvent:         { emoji:'🗑️', label:'Deletes' },
+    IssuesEvent:         { emoji:'🐛', label:'Issues' },
+    IssueCommentEvent:   { emoji:'💬', label:'Comments' },
+    PullRequestEvent:    { emoji:'🔀', label:'PRs' },
+    PullRequestReviewEvent:          { emoji:'👁️', label:'Reviews' },
+    PullRequestReviewCommentEvent:   { emoji:'📝', label:'Review Comments' },
+    WatchEvent:          { emoji:'⭐', label:'Stars' },
+    ForkEvent:           { emoji:'🍴', label:'Forks' },
+    ReleaseEvent:        { emoji:'🚀', label:'Releases' },
+    PublicEvent:         { emoji:'🌍', label:'Publicize' },
+    MemberEvent:         { emoji:'👤', label:'Members' },
+    GollumEvent:         { emoji:'📖', label:'Wiki' },
+  };
+
+  // ---- DOM refs ----
+  const $ = id => document.getElementById(id);
+  const usernameInput = $('usernameInput');
+  const tokenInput    = $('tokenInput');
+  const loadBtn       = $('loadBtn');
+  const randomBtn     = $('randomBtn');
+  const statsRow      = $('statsRow');
+  const heatmapContent= $('heatmapContent');
+  const filtersArea   = $('filtersArea');
+  const filtersSection= $('filtersSection');
+  const langSection   = $('langSection');
+  const langContent   = $('langContent');
+  const activitySection=$('activitySection');
+  const activityContent=$('activityContent');
+  const rangeInfo     = $('rangeInfo');
+  const tooltipEl     = $('tooltip');
+
+  // ---- theming ----
+  const themeBtns = document.querySelectorAll('[data-theme-btn]');
+  themeBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const theme = btn.dataset.themeBtn;
+      document.documentElement.dataset.theme = theme;
+      themeBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      try { localStorage.setItem('githive-theme', theme); } catch {}
+    });
+  });
+  // restore
+  try {
+    const saved = localStorage.getItem('githive-theme');
+    if (saved && ['dark','light','blue'].includes(saved)) {
+      document.documentElement.dataset.theme = saved;
+      document.querySelector(`[data-theme-btn="${saved}"]`)?.classList.add('active');
+      themeBtns.forEach(b => {
+        if (b.dataset.themeBtn !== saved) b.classList.remove('active');
+      });
+    }
+  } catch {}
+
+  // restore token
+  try {
+    const savedToken = localStorage.getItem('githive-token');
+    if (savedToken) tokenInput.value = savedToken;
+  } catch {}
+
+  // ---- helpers ----
+  function fmt(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function parseDate(str) { const d = new Date(str); return isNaN(d) ? null : d; }
+
+  function getToken() {
+    const t = tokenInput.value.trim();
+    if (t) {
+      try { localStorage.setItem('githive-token', t); } catch {}
+      return t;
+    }
+    return null;
+  }
+
+  async function ghFetch(url) {
+    const headers = { 'Accept': 'application/vnd.github.v3+json' };
+    const token = getToken();
+    if (token) headers['Authorization'] = `token ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); msg = j.message || msg; } catch {}
+      throw new Error(msg);
+    }
+    return res;
+  }
+
+  // ---- API: events ----
+  async function fetchEvents(username, maxPages = 4) {
+    let all = [];
+    let url = `https://api.github.com/users/${encodeURIComponent(username)}/events/public?per_page=100`;
+    for (let i = 0; i < maxPages && url; i++) {
+      const res = await ghFetch(url);
+      const data = await res.json();
+      if (!Array.isArray(data) || data.length === 0) break;
+      all = all.concat(data);
+      // next page from Link header
+      const link = res.headers.get('Link');
+      url = null;
+      if (link) {
+        const m = link.match(/<([^>]+)>;\s*rel="next"/);
+        if (m) url = m[1];
+      }
+    }
+    return all;
+  }
+
+  // ---- API: repo languages ----
+  async function fetchLanguages(repoFullName) {
+    const url = `https://api.github.com/repos/${repoFullName}/languages`;
+    const res = await ghFetch(url);
+    return await res.json();
+  }
+
+  // ---- data processing ----
+  function aggregateEvents(events, username) {
+    const dateCounts = {};
+    const eventTypes = {};
+    const repos = new Set();
+    const now = new Date();
+
+    for (const ev of events) {
+      if (!ev.created_at) continue;
+      const d = parseDate(ev.created_at);
+      if (!d) continue;
+      const key = fmt(d);
+      dateCounts[key] = (dateCounts[key] || 0) + 1;
+      eventTypes[ev.type] = (eventTypes[ev.type] || 0) + 1;
+      if (ev.repo && ev.repo.name) repos.add(ev.repo.name);
+    }
+
+    // build date range: last 12 weeks (84 days), aligned to Mon-Sat
+    const end = new Date(now);
+    // align end to Saturday
+    const dayOfWeek = end.getDay(); // 0=Sun
+    const diffToSat = dayOfWeek === 6 ? 0 : (dayOfWeek + 1) % 7;
+    end.setDate(end.getDate() - diffToSat);
+
+    const start = new Date(end);
+    start.setDate(start.getDate() - 83); // 12*7 - 1 = 83
+
+    // Align start to Monday
+    const startDay = start.getDay(); // 0=Sun
+    start.setDate(start.getDate() - ((startDay + 6) % 7)); // back to previous Monday
+
+    const dateRange = [];
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      dateRange.push(fmt(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return { dateCounts, dateRange, eventTypes, repos: [...repos].sort() };
+  }
+
+  function formatCount(n) {
+    if (n >= 1000) return (n/1000).toFixed(1) + 'k';
+    return String(n);
+  }
+
+  function getLevel(count, max) {
+    if (count === 0) return 0;
+    const ratio = count / max;
+    if (ratio <= .25) return 1;
+    if (ratio <= .5)  return 2;
+    if (ratio <= .75) return 3;
+    return 4;
+  }
+
+  // ---- render heatmap ----
+  function renderHeatmap(dateCounts, dateRange, repoFilter) {
+    const data = [];
+    for (const d of dateRange) {
+      data.push({ date: d, count: dateCounts[d] || 0 });
+    }
+    const maxCount = Math.max(1, ...data.map(d => d.count));
+
+    // Group by weeks (7 days each). dateRange is ordered oldest → newest
+    const weeks = [];
+    for (let i = 0; i < data.length; i += 7) {
+      weeks.push(data.slice(i, i + 7));
+    }
+
+    // Month labels
+    const monthLabels = [];
+    let lastMonth = -1;
+    for (const week of weeks) {
+      const firstNonEmpty = week.find(d => d.date !== null);
+      if (firstNonEmpty) {
+        const dt = parseDate(firstNonEmpty.date);
+        if (dt && dt.getMonth() !== lastMonth) {
+          monthLabels.push({ label: dt.toLocaleString('default',{month:'short'}), span: 1 });
+          lastMonth = dt.getMonth();
+        } else {
+          if (monthLabels.length > 0) monthLabels[monthLabels.length-1].span++;
+          else monthLabels.push({ label: '', span: 1 });
+        }
+      }
+    }
+
+    // Month row HTML
+    let monthHtml = '<div class="month-labels">';
+    for (const m of monthLabels) {
+      monthHtml += `<span style="grid-column:span ${m.span}">${m.label}</span>`;
+    }
+    monthHtml += '</div>';
+
+    // Day labels column HTML
+    const dayLabelHtml = DAY_LABELS.map(d => `<span>${d}</span>`).join('');
+
+    // Build cells: row-major (row 0=Mon ... row 6=Sun), then column (week)
+    let cellsHtml = '';
+    for (let row = 0; row < 7; row++) {
+      for (let col = 0; col < weeks.length; col++) {
+        const d = weeks[col][row];
+        if (!d || d.date === null) {
+          cellsHtml += '<div class="cell empty"></div>';
+        } else {
+          const level = getLevel(d.count, maxCount);
+          const dt = parseDate(d.date);
+          const dayName = DAYS[row];
+          const dateStr = dt.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+          cellsHtml += `<div class="cell lv${level}" data-count="${d.count}" data-date="${d.date}" data-day="${dayName}" data-full="${dateStr}"></div>`;
+        }
+      }
+    }
+
+    const finalHtml = `
+      ${monthHtml}
+      <div class="heatmap-container">
+        <div class="day-labels">${dayLabelHtml}</div>
+        <div class="heatmap-wrapper">
+          <div class="heatmap">${cellsHtml}</div>
+        </div>
+      </div>
+      <div class="heatmap-footer">
+        <span>Less</span>
+        <div class="legend-cells">
+          <div class="cell lv0"></div>
+          <div class="cell lv1"></div>
+          <div class="cell lv2"></div>
+          <div class="cell lv3"></div>
+          <div class="cell lv4"></div>
+        </div>
+        <span>More</span>
+      </div>
+    `;
+
+    heatmapContent.innerHTML = finalHtml;
+    heatmapContent.querySelectorAll('.cell:not(.empty)').forEach(el => {
+      el.addEventListener('mouseenter', e => {
+        const rect = el.getBoundingClientRect();
+        const count = el.dataset.count;
+        const date  = el.dataset.full;
+        const day   = el.dataset.day;
+        tooltipEl.textContent = `${count} event${count!='1'?'s':''} on ${day}, ${date}`;
+        tooltipEl.style.left = (rect.left + rect.width/2) + 'px';
+        tooltipEl.style.top = (rect.top - 8) + 'px';
+        tooltipEl.style.transform = 'translate(-50%,-100%)';
+        tooltipEl.classList.add('visible');
+      });
+      el.addEventListener('mouseleave', () => tooltipEl.classList.remove('visible'));
+    });
+
+    // Range info
+    if (dateRange.length > 0) {
+      const first = parseDate(dateRange[0]);
+      const last  = parseDate(dateRange[dateRange.length-1]);
+      if (first && last) {
+        rangeInfo.textContent = `${first.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${last.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
+      }
+    }
+
+    return {};
+  }
+
+  // ---- stats ----
+  function computeStats(dateCounts, dateRange) {
+    // total events in range
+    let totalEvents = 0;
+    let activeDays = 0;
+    const days = [];
+    for (const d of dateRange) {
+      const c = dateCounts[d] || 0;
+      totalEvents += c;
+      if (c > 0) activeDays++;
+      days.push({ date: d, count: c });
+    }
+
+    // best day
+    let bestCount = 0, bestDate = '';
+    for (const d of dateRange) {
+      const c = dateCounts[d] || 0;
+      if (c > bestCount) { bestCount = c; bestDate = d; }
+    }
+
+    // current streak (from today backwards)
+    let currentStreak = 0;
+    const today = fmt(new Date());
+    for (let i = dateRange.length - 1; i >= 0; i--) {
+      const c = dateCounts[dateRange[i]] || 0;
+      if (c > 0) currentStreak++;
+      else break;
+    }
+
+    // longest streak
+    let longestStreak = 0, tempStreak = 0;
+    for (const d of dateRange) {
+      const c = dateCounts[d] || 0;
+      if (c > 0) { tempStreak++; if (tempStreak > longestStreak) longestStreak = tempStreak; }
+      else tempStreak = 0;
+    }
+
+    return { totalEvents, activeDays, currentStreak, longestStreak, bestCount, bestDate };
+  }
+
+  function renderStats(dateCounts, dateRange) {
+    const s = computeStats(dateCounts, dateRange);
+    $('statTotal').textContent = formatCount(s.totalEvents);
+    $('statActive').textContent = s.activeDays;
+    $('statStreak').textContent = s.currentStreak;
+    $('statStreakSub').textContent = s.currentStreak === 1 ? 'current day' : 'current streak';
+    $('statLongest').textContent = s.longestStreak;
+
+    if (s.bestDate) {
+      const dt = parseDate(s.bestDate);
+      $('statBest').textContent = s.bestCount;
+      $('statBestSub').textContent = dt ? dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+    } else {
+      $('statBest').textContent = '—';
+      $('statBestSub').textContent = '';
+    }
+  }
+
+  // ---- language breakdown ----
+  async function renderLanguages(repos, filterFn) {
+    const filtered = repos.filter(r => filterFn ? filterFn(r) : true);
+    if (filtered.length === 0) {
+      langSection.style.display = 'none';
+      return;
+    }
+
+    // fetch 10 at a time
+    const langAccum = {};
+    const batch = filtered.slice(0, 15); // max 15 repos to avoid too many calls
+    for (const repo of batch) {
+      try {
+        const langs = await fetchLanguages(repo);
+        for (const [lang, bytes] of Object.entries(langs)) {
+          langAccum[lang] = (langAccum[lang] || 0) + bytes;
+        }
+      } catch (e) {
+        // ignore failures
+      }
+    }
+
+    const total = Object.values(langAccum).reduce((a,b) => a+b, 0);
+    if (total === 0) {
+      langSection.style.display = 'none';
+      return;
+    }
+
+    const entries = Object.entries(langAccum)
+      .map(([name, bytes]) => ({ name, bytes, pct: (bytes/total)*100 }))
+      .sort((a,b) => b.bytes - a.bytes);
+
+    const LANG_COLORS = {
+      'JavaScript': '#f7df1e', 'Python': '#3572a5', 'TypeScript': '#3178c6',
+      'HTML': '#e34f26', 'CSS': '#563d7c', 'Go': '#00add8',
+      'Rust': '#dea584', 'Java': '#b07219', 'Ruby': '#701516',
+      'Shell': '#89e051', 'Solidity': '#363636', 'Markdown': '#083fa1',
+      'JSON': '#5b5b5b', 'C': '#555555', 'C++': '#f34b7d',
+      'C#': '#178600', 'PHP': '#4f5d95', 'Swift': '#f05138',
+      'Kotlin': '#a97bff', 'Dart': '#00b4ab', 'Scala': '#c22d40',
+      'Lua': '#000080', 'R': '#198ce7', 'Haskell': '#5e5086',
+      'Elixir': '#6e4a7e', 'Clojure': '#db5855', 'Erlang': '#b83998',
+    };
+
+    let html = '';
+    for (const e of entries) {
+      const color = LANG_COLORS[e.name] || '#6b7280';
+      html += `
+        <div class="lang-bar-row">
+          <span class="lang-name">${e.name}</span>
+          <div class="lang-track">
+            <div class="lang-fill" style="width:${e.pct}%;background:${color}"></div>
+          </div>
+          <span class="lang-pct">${e.pct.toFixed(1)}%</span>
+        </div>`;
+    }
+
+    langContent.innerHTML = html;
+    langSection.style.display = 'block';
+  }
+
+  // ---- activity breakdown ----
+  function renderActivity(eventTypes, filterFn) {
+    const entries = Object.entries(eventTypes)
+      .filter(([type]) => filterFn ? filterFn(type) : true)
+      .sort((a,b) => b[1] - a[1]);
+
+    if (entries.length === 0) {
+      activitySection.style.display = 'none';
+      return;
+    }
+
+    let html = '<div class="activity-grid">';
+    for (const [type, count] of entries) {
+      const meta = EVENTS_META[type] || { emoji: '📌', label: type.replace('Event','') };
+      html += `
+        <div class="activity-item">
+          <span class="emoji">${meta.emoji}</span>
+          <div class="info">
+            <div class="type">${meta.label}</div>
+            <div class="count">${count} event${count!==1?'s':''}</div>
+          </div>
+          <span class="count-num">${count}</span>
+        </div>`;
+    }
+    html += '</div>';
+
+    activityContent.innerHTML = html;
+    activitySection.style.display = 'block';
+  }
+
+  // ---- filters ----
+  function renderFilters(repos, activeRepo) {
+    filtersArea.style.display = 'block';
+    let html = `<span class="filter-label">📂 Repos</span>
+                <button class="filter-chip ${activeRepo==='all'?'active':''}" data-repo="all">All</button>`;
+    for (const repo of repos) {
+      const short = repo.split('/')[1];
+      const active = repo === activeRepo ? 'active' : '';
+      html += `<button class="filter-chip repo-chip ${active}" data-repo="${repo}" title="${repo}">${short}</button>`;
+    }
+    filtersSection.innerHTML = html;
+    filtersSection.querySelectorAll('.filter-chip').forEach(el => {
+      el.addEventListener('click', () => {
+        const repo = el.dataset.repo;
+        state.repoFilter = repo;
+        filtersSection.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        // re-render with filter
+        const filteredEvents = repo === 'all' ? state.events : state.events.filter(e => e.repo && e.repo.name === repo);
+        const agg = aggregateEvents(filteredEvents, state.username);
+        renderHeatmap(agg.dateCounts, agg.dateRange, repo);
+        renderStats(agg.dateCounts, agg.dateRange);
+        renderActivity(agg.eventTypes, type => true);
+        // languages already rendered, re-filter not needed since we fetch per-repo
+      });
+    });
+  }
+
+  // ---- main load ----
+  async function loadUser(username) {
+    if (!username || state.loading) return;
+    state.username = username;
+    state.loading = true;
+
+    heatmapContent.innerHTML = `<div class="loading-state">
+      <div class="spinner"></div>
+      <p>Fetching activity for <strong>${username}</strong>…</p>
+    </div>`;
+    $('statTotal').textContent = '…';
+    $('statActive').textContent = '…';
+    $('statStreak').textContent = '…';
+    $('statLongest').textContent = '…';
+    $('statBest').textContent = '…';
+    langSection.style.display = 'none';
+    activitySection.style.display = 'none';
+    filtersArea.style.display = 'none';
+
+    try {
+      // 1. fetch events
+      const events = await fetchEvents(username);
+      if (events.length === 0) {
+        heatmapContent.innerHTML = `<div class="empty-state">
+          <div class="big-icon">🔍</div>
+          <h3>No public events found</h3>
+          <p>${username} has no recent public GitHub activity</p>
+        </div>`;
+        state.loading = false;
+        return;
+      }
+
+      state.events = events;
+      const agg = aggregateEvents(events, username);
+      state.dateCounts = agg.dateCounts;
+      state.dateRange = agg.dateRange;
+      state.repos = new Set(agg.repos);
+      state.eventTypes = agg.eventTypes;
+      state.repoFilter = 'all';
+
+      // 2. render heatmap
+      renderHeatmap(agg.dateCounts, agg.dateRange, 'all');
+
+      // 3. stats
+      renderStats(agg.dateCounts, agg.dateRange);
+
+      // 4. activity
+      renderActivity(agg.eventTypes, type => true);
+
+      // 5. filters
+      renderFilters(agg.repos, 'all');
+
+      // 6. languages (async, won't block)
+      renderLanguages(agg.repos, null);
+
+      // save username
+      try { localStorage.setItem('githive-username', username); } catch {}
+
+    } catch (err) {
+      heatmapContent.innerHTML = `<div class="error-state">
+        <div class="big-icon">⚠️</div>
+        <h3>Error loading data</h3>
+        <p style="font-size:.85rem;color:var(--text-muted)">${err.message}</p>
+      </div>`;
+    }
+
+    state.loading = false;
+  }
+
+  // ---- events ----
+  loadBtn.addEventListener('click', () => {
+    const val = usernameInput.value.trim();
+    if (val) loadUser(val);
+  });
+
+  usernameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const val = usernameInput.value.trim();
+      if (val) loadUser(val);
+    }
+  });
+
+  // random interesting users
+  const RANDOM_USERS = ['torvalds','midudev','fabpot','yyx990803','tj','mojombo','defunkt','hadley','rauchg','sindresorhus','antfu','unclebob','microsoft','vercel','tailwindlabs','cloudflare','nwfella'];
+  randomBtn.addEventListener('click', () => {
+    const user = RANDOM_USERS[Math.floor(Math.random() * RANDOM_USERS.length)];
+    usernameInput.value = user;
+    loadUser(user);
+  });
+
+  // restore username
+  try {
+    const savedUser = localStorage.getItem('githive-username');
+    if (savedUser) {
+      usernameInput.value = savedUser;
+      loadUser(savedUser);
+    }
+  } catch {}
+
+  // ---- tooltip position fix ----
+  document.addEventListener('scroll', () => { tooltipEl.classList.remove('visible'); });
+  </script>
+</body>
+</html>
